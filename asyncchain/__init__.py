@@ -1,4 +1,5 @@
 import asyncio
+import warnings
 from typing import Callable
 
 
@@ -13,6 +14,22 @@ class AsyncChain:
         self.coros = []
 
     def __call__(self, *args, **kwargs):
+        loop = asyncio.get_running_loop()
+
+        def _task_factory(_loop, coro):
+            if isinstance(coro, type(self)):
+                return asyncio.Task(coro.execute_coros(), loop=_loop)
+
+            else:
+                return asyncio.Task(coro, loop=_loop)
+
+        current_factory = loop.get_task_factory()
+        if current_factory is None:
+            loop.set_task_factory(_task_factory)
+
+        elif current_factory != _task_factory:
+            warnings.warn("task_factory set elseware, chains will not be able to be create_tasked")
+
         self.coros.append(self.callback(*args, **kwargs))
         return self
 
@@ -43,9 +60,9 @@ class ChainMeta(type):
 
         old_init = new_class.__init__
 
-        def wrapped(*args, **kwargs):
-            new_instance = args[0]
-            old_init(*args, **kwargs)
+        def wrapped(*wrapped_args, **wrapped_kwargs):
+            new_instance = wrapped_args[0]
+            old_init(*wrapped_args, **wrapped_kwargs)
             for attr in dir(new_instance):
                 item = getattr(new_instance, attr)
                 if asyncio.iscoroutinefunction(item):
