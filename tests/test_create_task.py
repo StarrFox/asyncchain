@@ -12,7 +12,6 @@ if __name__ == "__main__":
     chainer = Chainer()
 
     async def caller():
-        loop = asyncio.get_running_loop()
         task = asyncio.create_task(chainer.first())
         await task
 

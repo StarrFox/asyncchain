@@ -4,14 +4,18 @@ from typing import Callable
 
 
 class AsyncChain:
-    def __init__(self, instance, callback: Callable):
+    def __init__(
+            self,
+            instance,
+            callback: Callable,
+    ):
         if not asyncio.iscoroutinefunction(callback):
             raise TypeError(f"callback needs to be a coroutine function, not {type(callback)!r}")
 
         self.instance = instance
         self.callback = callback
 
-        self.coros = []
+        self.coros: list[list[tuple[Callable, tuple[tuple, dict]]]] = []
 
     def __call__(self, *args, **kwargs):
         loop = asyncio.get_running_loop()
@@ -27,28 +31,29 @@ class AsyncChain:
         if current_factory is None:
             loop.set_task_factory(_task_factory)
 
-        elif current_factory != _task_factory:
-            warnings.warn("task_factory set elseware, chains will not be able to be create_tasked")
+        # elif current_factory != _task_factory:
+        #     warnings.warn("task_factory set elseware, chains will not be able to be create_tasked")
 
-        self.coros.append(self.callback(*args, **kwargs))
+        self.coros.append((self.callback, (args, kwargs)))
         return self
 
     def __getattribute__(self, name):
         try:
             return object.__getattribute__(self, name)
         except AttributeError:
-            res = object.__getattribute__(self.instance, name)
+            return object.__getattribute__(self.instance, name)
 
-        if isinstance(res, type(self)):
-            res.coros.extend(self.coros)
-            return res
+    async def execute_coros(self) -> list:
+        res = []
+        while self.coros:
+            coro, args = self.coros.pop(0)
 
-        else:
-            return res
+            res.append(await coro(*args[0], **args[1]))
 
-    async def execute_coros(self):
-        for coro in self.coros:
-            await coro
+        if len(res) == 1:
+            return res[0]
+
+        return res
 
     def __await__(self):
         return self.execute_coros().__await__()
