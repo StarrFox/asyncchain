@@ -15,7 +15,8 @@ class AsyncChain:
         self.instance = instance
         self.callback = callback
 
-        self.coros: list[list[tuple[Callable, tuple[tuple, dict]]]] = []
+        # self.coros: list[list[tuple[Callable, tuple[tuple, dict]]]] = []
+        self.coros = []
 
     def __call__(self, *args, **kwargs):
         loop = asyncio.get_running_loop()
@@ -45,10 +46,10 @@ class AsyncChain:
 
     async def execute_coros(self) -> list:
         res = []
-        while self.coros:
-            coro, args = self.coros.pop(0)
 
-            res.append(await coro(*args[0], **args[1]))
+        coro, args = self.coros.pop(0)
+
+        res.append(await coro(*args[0], **args[1]))
 
         if len(res) == 1:
             return res[0]
